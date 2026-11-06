@@ -2,3 +2,5 @@
 channel = "1.99.1"
 profile = "minimal"
 components = ["rustfmt", "clippy", "rust-analyzer", "rust-src"]
+# The stack tests run on a Cortex-M3 in QEMU
+targets = ["thumbv7m-none-eabi"]

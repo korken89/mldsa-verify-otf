@@ -43,6 +43,10 @@
           default = pkgs.mkShell {
             packages = [
               rustToolchain
+              # Task runner (Makefile)
+              pkgs.gnumake
+              # Runs the stack usage tests in qemu/ (qemu-system-arm)
+              pkgs.qemu
             ];
           };
         }

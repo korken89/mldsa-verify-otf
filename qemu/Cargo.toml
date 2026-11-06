@@ -1,0 +1,31 @@
+[package]
+name = "stack-usage"
+version = "0.1.0"
+edition = "2024"
+description = "Stack usage of ML-DSA-65 verification on a Cortex-M4 in QEMU"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[workspace]
+
+[dependencies]
+cortex-m = "0.7"
+cortex-m-rt = "0.7"
+ml-dsa = { version = "0.1", default-features = false }
+mldsa-verify-otf = { path = ".." }
+semihosting = { version = "0.1", features = ["stdio", "panic-handler"] }
+
+[build-dependencies]
+hex = "0.4"
+serde_json = "1"
+
+[profile.release]
+codegen-units = 1
+debug = true
+lto = true
+opt-level = "s"
+
+[[bin]]
+name = "stack-usage"
+test = false
+bench = false
