@@ -7,10 +7,17 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - name: Install QEMU
-        run: sudo apt-get update && sudo apt-get install -y qemu-system-arm
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          # Skip the slow man page index update
+          sudo rm -f /var/lib/man-db/auto-update
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-arm
       - name: Install Rust from rust-toolchain.toml
         run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
