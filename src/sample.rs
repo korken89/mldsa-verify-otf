@@ -10,10 +10,25 @@ const TAU: usize = 49;
 /// The challenge polynomial c, with coefficients in {-1, 0, 1}.
 pub type Challenge = [i8; 256];
 
+/// The matrix A in the NTT domain, given one entry at a time.
+pub trait Matrix {
+    /// Passes each coefficient of `A[row][col]` to `f` in order.
+    fn entry(&self, row: u8, col: u8, f: impl FnMut(usize, i32));
+}
+
+/// A expanded from the seed rho (ExpandA, Algorithm 32).
+pub struct ExpandA<'a>(pub &'a [u8]);
+
+impl Matrix for ExpandA<'_> {
+    fn entry(&self, row: u8, col: u8, f: impl FnMut(usize, i32)) {
+        rej_ntt_poly(self.0, row, col, f);
+    }
+}
+
 /// RejNTTPoly (Algorithm 30) for the matrix entry `A[row][col]` (Algorithm 32), passing each
 /// coefficient to `f` in order instead of storing the polynomial.
 #[inline(never)]
-pub fn rej_ntt_poly(rho: &[u8], row: u8, col: u8, mut f: impl FnMut(usize, i32)) {
+fn rej_ntt_poly(rho: &[u8], row: u8, col: u8, mut f: impl FnMut(usize, i32)) {
     let mut xof = Shake128::default()
         .chain(rho)
         .chain([col, row])

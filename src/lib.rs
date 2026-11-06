@@ -101,11 +101,12 @@ fn verify_mu(pk: &[u8; PUBLIC_KEY_LEN], mu: &[u8; 64], sig: &[u8; SIGNATURE_LEN]
     let c = sample::sample_in_ball(c_tilde);
     let mut h = Shake256::default().chain(mu);
     let (rho, t1) = pk.split_at(32);
+    let matrix = sample::ExpandA(rho);
     let (hint_indices, hint_limits) = hints.split_at(OMEGA);
     let mut hint_start = 0;
     for ((row, t1), &hint_end) in (0..).zip(t1.chunks_exact(T1_POLY_LEN)).zip(hint_limits) {
         let hint_end = usize::from(hint_end);
-        let w1 = w1_row(rho, row, z, &c, t1, &hint_indices[hint_start..hint_end]);
+        let w1 = w1_row(&matrix, row, z, &c, t1, &hint_indices[hint_start..hint_end]);
         h.update(&w1);
         hint_start = hint_end;
     }
@@ -117,7 +118,7 @@ fn verify_mu(pk: &[u8; PUBLIC_KEY_LEN], mu: &[u8; 64], sig: &[u8; SIGNATURE_LEN]
 /// Returns w1Encode(UseHint(h, A[row] * z - c * t1 * 2^d)) for one row.
 #[inline(never)]
 fn w1_row(
-    rho: &[u8],
+    matrix: &impl sample::Matrix,
     row: u8,
     z: &[u8],
     c: &sample::Challenge,
@@ -131,7 +132,7 @@ fn w1_row(
             *out = z;
         }
         ntt(&mut z_hat);
-        sample::rej_ntt_poly(rho, row, col, |n, a| {
+        matrix.entry(row, col, |n, a| {
             w[n] += mont_mul(a, z_hat[n]);
         });
     }

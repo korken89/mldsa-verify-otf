@@ -31,6 +31,65 @@ fn ntt_product_matches_schoolbook() {
     }
 }
 
+/// Every coefficient of every entry of A is the same.
+struct ConstMatrix(i32);
+
+impl sample::Matrix for ConstMatrix {
+    fn entry(&self, _: u8, _: u8, mut f: impl FnMut(usize, i32)) {
+        for n in 0..256 {
+            f(n, self.0);
+        }
+    }
+}
+
+#[test]
+fn w1_row_largest_sums() {
+    // A constant in the NTT domain is a constant polynomial, so with z = z0 in every column
+    // A * z = 5 * a * z0. The largest a and z0 give the largest sums in the inverse NTT. An
+    // overflow there moves w only a little, so t1 moves w over all of its HighBits values.
+    let (a, z0) = (Q - 1, GAMMA1 - BETA - 1);
+    let mut z = [0; L * Z_POLY_LEN];
+    for col in z.chunks_exact_mut(Z_POLY_LEN) {
+        for n in 0..256 {
+            let v = GAMMA1 - if n == 0 { z0 } else { 0 };
+            for bit in 0..20 {
+                col[(20 * n + bit) / 8] |= ((v >> bit) as u8 & 1) << ((20 * n + bit) % 8);
+            }
+        }
+    }
+    let mut c = [0; 256];
+    c[0] = 1;
+    for t1 in 0..1024 {
+        let mut t1_packed = [0; T1_POLY_LEN];
+        t1_packed[..2].copy_from_slice(&u16::to_le_bytes(t1));
+        let mut want = [0; 256];
+        let w = 5 * i64::from(a) * i64::from(z0) - (i64::from(t1) << D);
+        want[0] = w.rem_euclid(i64::from(Q)) as i32;
+        let got = w1_row(&ConstMatrix(a), 0, &z, &c, &t1_packed, &[]);
+        assert_eq!(got, encode::use_hints_encode(&want, &[]), "t1 = {t1}");
+    }
+}
+
+#[test]
+fn repeated_hint_index_rejected() {
+    let mut hints = [0; OMEGA + K];
+    hints[..2].copy_from_slice(&[5, 6]);
+    hints[OMEGA..].fill(2);
+    assert!(encode::hints_valid(&hints));
+    hints[1] = 5;
+    assert!(!encode::hints_valid(&hints));
+}
+
+#[test]
+fn backwards_hint_limit_rejected() {
+    let mut hints = [0; OMEGA + K];
+    hints[..2].copy_from_slice(&[5, 6]);
+    hints[OMEGA..].copy_from_slice(&[1, 2, 2, 2, 2, 2]);
+    assert!(encode::hints_valid(&hints));
+    hints[OMEGA + 2] = 1;
+    assert!(!encode::hints_valid(&hints));
+}
+
 #[derive(Deserialize)]
 struct Case {
     id: u32,

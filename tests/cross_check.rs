@@ -58,9 +58,6 @@ fn ml_dsa_signatures() {
             .is_some_and(|s| key.verifying_key().verify_with_context(&msg, ctx, &s));
         let ours = verify_with_context(&pk, ctx, &[&msg], &sig).is_ok();
         assert_eq!(ours, theirs, "bit flip at byte {i}");
-        assert!(
-            !ours || i >= SIGNATURE_LEN - 61,
-            "bit flip at byte {i} accepted"
-        );
+        assert!(!ours, "bit flip at byte {i} accepted");
     }
 }
