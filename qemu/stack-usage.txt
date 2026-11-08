@@ -1,8 +1,10 @@
-ML-DSA-65 verification stack usage in bytes:
-                                   valid invalid
-  mldsa-verify-otf                  3592    3592
-  ml-dsa decode and verify        134484  134492
-  ml-dsa verify, decoded key       60116   60116
+ML-DSA verification stack usage in bytes:
+                                         valid invalid
+  mldsa-verify-otf, ML-DSA-44             3576    3576
+  mldsa-verify-otf, ML-DSA-65             3576    3576
+  mldsa-verify-otf, ML-DSA-87             3576    3576
+  ml-dsa decode and verify, ML-DSA-65   134484  134492
+  ml-dsa verify, decoded key, ML-DSA-65   60116   60116
 
-  ml-dsa key decode, without key   91380
-  ml-dsa decoded key size          43104
+  ml-dsa key decode, without key         91380
+  ml-dsa decoded key size                43104

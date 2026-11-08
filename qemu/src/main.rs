@@ -1,5 +1,5 @@
-//! Measures the peak stack usage of ML-DSA-65 verification, here and in the `ml-dsa` crate, on a
-//! Cortex-M3.
+//! Measures the peak stack usage of ML-DSA verification here, and of ML-DSA-65 verification in
+//! the `ml-dsa` crate, on a Cortex-M3.
 //!
 //! Each measurement fills the free stack with a pattern, runs the verification and finds the
 //! lowest word that changed. Run with `cargo run --release`, which starts QEMU.
@@ -9,13 +9,30 @@
 use core::hint::black_box;
 
 use cortex_m_rt::entry;
-use ml_dsa::{MlDsa65, Signature, VerifyingKey};
-use mldsa_verify_otf::{PUBLIC_KEY_LEN, SIGNATURE_LEN, verify};
+use ml_dsa::{Signature, VerifyingKey};
+use mldsa_verify_otf::{MlDsa44, MlDsa65, MlDsa87, ParameterSet, verify};
 use semihosting::{println, process};
 
-static PK: &[u8; PUBLIC_KEY_LEN] = include_bytes!(concat!(env!("OUT_DIR"), "/pk.bin"));
-static SIG: &[u8; SIGNATURE_LEN] = include_bytes!(concat!(env!("OUT_DIR"), "/sig.bin"));
-static MSG: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/msg.bin"));
+/// A valid public key, message and signature for one parameter set.
+struct Vector<P: ParameterSet> {
+    pk: &'static P::PublicKey,
+    msg: &'static [u8],
+    sig: &'static P::Signature,
+}
+
+macro_rules! vector {
+    ($set:literal) => {
+        Vector {
+            pk: include_bytes!(concat!(env!("OUT_DIR"), "/pk_", $set, ".bin")),
+            msg: include_bytes!(concat!(env!("OUT_DIR"), "/msg_", $set, ".bin")),
+            sig: include_bytes!(concat!(env!("OUT_DIR"), "/sig_", $set, ".bin")),
+        }
+    };
+}
+
+static V44: Vector<MlDsa44> = vector!("44");
+static V65: Vector<MlDsa65> = vector!("65");
+static V87: Vector<MlDsa87> = vector!("87");
 
 const PAINT: u32 = 0xa5a5_a5a5;
 
@@ -51,55 +68,65 @@ fn call<R>(f: impl FnOnce() -> R) -> R {
     black_box(f())
 }
 
-fn ours(sig: &[u8; SIGNATURE_LEN]) -> bool {
-    verify(black_box(PK), black_box(MSG), black_box(sig)).is_ok()
+fn ours<P: ParameterSet>(v: &Vector<P>, sig: &P::Signature) -> bool {
+    verify::<P>(black_box(v.pk), black_box(v.msg), black_box(sig)).is_ok()
 }
 
-fn ml_dsa_decode_key() -> VerifyingKey<MlDsa65> {
-    VerifyingKey::decode(black_box(PK).into())
+fn ml_dsa_decode_key() -> VerifyingKey<ml_dsa::MlDsa65> {
+    VerifyingKey::decode(black_box(V65.pk).into())
 }
 
-fn ml_dsa_decode_verify(sig: &[u8; SIGNATURE_LEN]) -> bool {
+fn ml_dsa_decode_verify(sig: &<MlDsa65 as ParameterSet>::Signature) -> bool {
     ml_dsa_verify(&ml_dsa_decode_key(), sig)
 }
 
-fn ml_dsa_verify(key: &VerifyingKey<MlDsa65>, sig: &[u8; SIGNATURE_LEN]) -> bool {
-    Signature::<MlDsa65>::decode(black_box(sig).into())
-        .is_some_and(|sig| key.verify_with_context(black_box(MSG), &[], &sig))
+fn ml_dsa_verify(
+    key: &VerifyingKey<ml_dsa::MlDsa65>,
+    sig: &<MlDsa65 as ParameterSet>::Signature,
+) -> bool {
+    Signature::<ml_dsa::MlDsa65>::decode(black_box(sig).into())
+        .is_some_and(|sig| key.verify_with_context(black_box(V65.msg), &[], &sig))
 }
 
 /// Prints the stack usage of `verify` with a valid and an invalid signature.
-fn row(name: &str, verify: impl Fn(&[u8; SIGNATURE_LEN]) -> bool, bad_sig: &[u8; SIGNATURE_LEN]) {
-    let (valid, valid_bytes) = stack_usage(|| verify(SIG));
-    let (invalid, invalid_bytes) = stack_usage(|| verify(bad_sig));
+fn row<P: ParameterSet>(name: &str, v: &Vector<P>, verify: impl Fn(&P::Signature) -> bool)
+where
+    P::Signature: Copy + AsMut<[u8]>,
+{
+    let mut bad_sig = *v.sig;
+    bad_sig.as_mut()[0] ^= 1;
+    let (valid, valid_bytes) = stack_usage(|| verify(v.sig));
+    let (invalid, invalid_bytes) = stack_usage(|| verify(&bad_sig));
     assert!(valid && !invalid, "{name}");
-    println!("  {name:<30} {valid_bytes:>7} {invalid_bytes:>7}");
+    println!("  {name:<36} {valid_bytes:>7} {invalid_bytes:>7}");
 }
 
 #[entry]
 fn main() -> ! {
-    let mut bad_sig = *SIG;
-    bad_sig[0] ^= 1;
     let (key, decode_bytes) = stack_usage(ml_dsa_decode_key);
 
-    println!("ML-DSA-65 verification stack usage in bytes:");
-    println!("  {:<30} {:>7} {:>7}", "", "valid", "invalid");
-    row("mldsa-verify-otf", ours, &bad_sig);
-    row("ml-dsa decode and verify", ml_dsa_decode_verify, &bad_sig);
+    println!("ML-DSA verification stack usage in bytes:");
+    println!("  {:<36} {:>7} {:>7}", "", "valid", "invalid");
+    row("mldsa-verify-otf, ML-DSA-44", &V44, |sig| ours(&V44, sig));
+    row("mldsa-verify-otf, ML-DSA-65", &V65, |sig| ours(&V65, sig));
+    row("mldsa-verify-otf, ML-DSA-87", &V87, |sig| ours(&V87, sig));
     row(
-        "ml-dsa verify, decoded key",
-        |sig| ml_dsa_verify(&key, sig),
-        &bad_sig,
+        "ml-dsa decode and verify, ML-DSA-65",
+        &V65,
+        ml_dsa_decode_verify,
     );
+    row("ml-dsa verify, decoded key, ML-DSA-65", &V65, |sig| {
+        ml_dsa_verify(&key, sig)
+    });
     println!();
     println!(
-        "  {:<30} {decode_bytes:>7}",
+        "  {:<36} {decode_bytes:>7}",
         "ml-dsa key decode, without key"
     );
     println!(
-        "  {:<30} {:>7}",
+        "  {:<36} {:>7}",
         "ml-dsa decoded key size",
-        size_of::<VerifyingKey<MlDsa65>>()
+        size_of::<VerifyingKey<ml_dsa::MlDsa65>>()
     );
     process::exit(0)
 }

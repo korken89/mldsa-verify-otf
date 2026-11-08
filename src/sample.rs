@@ -3,9 +3,7 @@
 use shake::{ExtendableOutput, Shake128, Shake256, Update, XofReader};
 
 use crate::ntt::{Poly, Q};
-
-/// Number of nonzero coefficients in the challenge polynomial c.
-const TAU: usize = 49;
+use crate::params::Params;
 
 /// The challenge polynomial c, with coefficients in {-1, 0, 1}.
 pub type Challenge = [i8; 256];
@@ -47,13 +45,13 @@ fn rej_ntt_poly(rho: &[u8], row: u8, col: u8, mut f: impl FnMut(usize, i32)) {
 
 /// SampleInBall (Algorithm 29).
 #[inline(never)]
-pub fn sample_in_ball(c_tilde: &[u8]) -> Challenge {
+pub fn sample_in_ball<P: Params>(c_tilde: &[u8]) -> Challenge {
     let mut xof = Shake256::default().chain(c_tilde).finalize_xof();
     let mut signs = [0; 8];
     xof.read(&mut signs);
     let mut signs = u64::from_le_bytes(signs);
     let mut c = [0; 256];
-    for i in 256 - TAU..256 {
+    for i in 256 - P::TAU..256 {
         let j = loop {
             let mut j = [0];
             xof.read(&mut j);

@@ -42,18 +42,18 @@ impl sample::Matrix for ConstMatrix {
     }
 }
 
-#[test]
-fn w1_row_largest_sums() {
+fn w1_row_largest_sums<P: Params>() {
     // A constant in the NTT domain is a constant polynomial, so with z = z0 in every column
-    // A * z = 5 * a * z0. The largest a and z0 give the largest sums in the inverse NTT. An
+    // A * z = l * a * z0. The largest a and z0 give the largest sums in the inverse NTT. An
     // overflow there moves w only a little, so t1 moves w over all of its HighBits values.
-    let (a, z0) = (Q - 1, GAMMA1 - BETA - 1);
-    let mut z = [0; L * Z_POLY_LEN];
-    for col in z.chunks_exact_mut(Z_POLY_LEN) {
+    let (a, z0) = (Q - 1, P::GAMMA1 - P::BETA - 1);
+    let bits = P::Z_BITS as usize;
+    let mut z = vec![0; P::L * P::Z_POLY_LEN];
+    for col in z.chunks_exact_mut(P::Z_POLY_LEN) {
         for n in 0..256 {
-            let v = GAMMA1 - if n == 0 { z0 } else { 0 };
-            for bit in 0..20 {
-                col[(20 * n + bit) / 8] |= ((v >> bit) as u8 & 1) << ((20 * n + bit) % 8);
+            let v = P::GAMMA1 - if n == 0 { z0 } else { 0 };
+            for bit in 0..bits {
+                col[(bits * n + bit) / 8] |= ((v >> bit) as u8 & 1) << ((bits * n + bit) % 8);
             }
         }
     }
@@ -63,31 +63,46 @@ fn w1_row_largest_sums() {
         let mut t1_packed = [0; T1_POLY_LEN];
         t1_packed[..2].copy_from_slice(&u16::to_le_bytes(t1));
         let mut want = [0; 256];
-        let w = 5 * i64::from(a) * i64::from(z0) - (i64::from(t1) << D);
+        let w = P::L as i64 * i64::from(a) * i64::from(z0) - (i64::from(t1) << D);
         want[0] = w.rem_euclid(i64::from(Q)) as i32;
-        let got = w1_row(&ConstMatrix(a), 0, &z, &c, &t1_packed, &[]);
-        assert_eq!(got, encode::use_hints_encode(&want, &[]), "t1 = {t1}");
+        let got = w1_row::<P>(&ConstMatrix(a), 0, &z, &c, &t1_packed, &[]);
+        assert_eq!(got, encode::use_hints_encode::<P>(&want, &[]), "t1 = {t1}");
     }
 }
 
 #[test]
+fn w1_row_largest_sums_44() {
+    w1_row_largest_sums::<MlDsa44>();
+}
+
+#[test]
+fn w1_row_largest_sums_65() {
+    w1_row_largest_sums::<MlDsa65>();
+}
+
+#[test]
+fn w1_row_largest_sums_87() {
+    w1_row_largest_sums::<MlDsa87>();
+}
+
+#[test]
 fn repeated_hint_index_rejected() {
-    let mut hints = [0; OMEGA + K];
+    let mut hints = [0; MlDsa65::OMEGA + MlDsa65::K];
     hints[..2].copy_from_slice(&[5, 6]);
-    hints[OMEGA..].fill(2);
-    assert!(encode::hints_valid(&hints));
+    hints[MlDsa65::OMEGA..].fill(2);
+    assert!(encode::hints_valid::<MlDsa65>(&hints));
     hints[1] = 5;
-    assert!(!encode::hints_valid(&hints));
+    assert!(!encode::hints_valid::<MlDsa65>(&hints));
 }
 
 #[test]
 fn backwards_hint_limit_rejected() {
-    let mut hints = [0; OMEGA + K];
+    let mut hints = [0; MlDsa65::OMEGA + MlDsa65::K];
     hints[..2].copy_from_slice(&[5, 6]);
-    hints[OMEGA..].copy_from_slice(&[1, 2, 2, 2, 2, 2]);
-    assert!(encode::hints_valid(&hints));
-    hints[OMEGA + 2] = 1;
-    assert!(!encode::hints_valid(&hints));
+    hints[MlDsa65::OMEGA..].copy_from_slice(&[1, 2, 2, 2, 2, 2]);
+    assert!(encode::hints_valid::<MlDsa65>(&hints));
+    hints[MlDsa65::OMEGA + 2] = 1;
+    assert!(!encode::hints_valid::<MlDsa65>(&hints));
 }
 
 #[derive(Deserialize)]
@@ -104,14 +119,15 @@ struct Case {
     mu: Vec<u8>,
 }
 
-fn run(json: &str, mu_of: impl Fn(&[u8; PUBLIC_KEY_LEN], &Case) -> [u8; 64]) -> (usize, usize) {
+fn run<P: ParameterSet>(json: &str, mu_of: impl Fn(&[u8], &Case) -> [u8; 64]) -> (usize, usize) {
     let cases: Vec<Case> = serde_json::from_str(json).unwrap();
     let (mut valid, mut invalid) = (0, 0);
     for case in &cases {
-        let pk = case.pk.as_slice().try_into().unwrap();
-        let sig = case.sig.as_slice().try_into().unwrap();
-        let mu = mu_of(pk, case);
-        assert_eq!(verify_mu(pk, &mu, sig), case.valid, "tcId {}", case.id);
+        let pk = P::PublicKey::try_from(&case.pk).unwrap();
+        let sig = P::Signature::try_from(&case.sig).unwrap();
+        let mu = mu_of(pk.as_ref(), case);
+        let ok = verify_mu::<P>(pk.as_ref(), &mu, sig.as_ref());
+        assert_eq!(ok, case.valid, "tcId {}", case.id);
         if case.valid {
             valid += 1;
         } else {
@@ -121,16 +137,54 @@ fn run(json: &str, mu_of: impl Fn(&[u8; PUBLIC_KEY_LEN], &Case) -> [u8; 64]) -> 
     (valid, invalid)
 }
 
-#[test]
-fn acvp_internal_message() {
-    let json = include_str!("../tests/data/acvp_mldsa_65_sigver_internal.json");
-    let counts = run(json, |pk, case| mu(pk, [case.msg.as_slice()]));
+fn acvp_internal_message<P: ParameterSet>(json: &str) {
+    let counts = run::<P>(json, |pk, case| mu(pk, [case.msg.as_slice()]));
+    assert_eq!(counts, (3, 12));
+}
+
+fn acvp_internal_mu<P: ParameterSet>(json: &str) {
+    let counts = run::<P>(json, |_, case| case.mu.as_slice().try_into().unwrap());
     assert_eq!(counts, (3, 12));
 }
 
 #[test]
-fn acvp_internal_mu() {
-    let json = include_str!("../tests/data/acvp_mldsa_65_sigver_internal_mu.json");
-    let counts = run(json, |_, case| case.mu.as_slice().try_into().unwrap());
-    assert_eq!(counts, (3, 12));
+fn acvp_internal_message_44() {
+    acvp_internal_message::<MlDsa44>(include_str!(
+        "../tests/data/acvp_mldsa_44_sigver_internal.json"
+    ));
+}
+
+#[test]
+fn acvp_internal_message_65() {
+    acvp_internal_message::<MlDsa65>(include_str!(
+        "../tests/data/acvp_mldsa_65_sigver_internal.json"
+    ));
+}
+
+#[test]
+fn acvp_internal_message_87() {
+    acvp_internal_message::<MlDsa87>(include_str!(
+        "../tests/data/acvp_mldsa_87_sigver_internal.json"
+    ));
+}
+
+#[test]
+fn acvp_internal_mu_44() {
+    acvp_internal_mu::<MlDsa44>(include_str!(
+        "../tests/data/acvp_mldsa_44_sigver_internal_mu.json"
+    ));
+}
+
+#[test]
+fn acvp_internal_mu_65() {
+    acvp_internal_mu::<MlDsa65>(include_str!(
+        "../tests/data/acvp_mldsa_65_sigver_internal_mu.json"
+    ));
+}
+
+#[test]
+fn acvp_internal_mu_87() {
+    acvp_internal_mu::<MlDsa87>(include_str!(
+        "../tests/data/acvp_mldsa_87_sigver_internal_mu.json"
+    ));
 }
