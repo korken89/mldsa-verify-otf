@@ -50,6 +50,17 @@ pub enum Error {
     InvalidSignature,
 }
 
+impl core::fmt::Display for Error {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::ContextTooLong => "context string is longer than 255 bytes",
+            Self::InvalidSignature => "invalid signature",
+        })
+    }
+}
+
+impl core::error::Error for Error {}
+
 /// Verifies `sig` over `message` with an empty context string.
 pub fn verify(
     pk: &[u8; PUBLIC_KEY_LEN],
