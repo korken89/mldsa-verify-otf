@@ -6,6 +6,14 @@ The matrix A and NTT(z) are never stored.
 Each row of w is computed on its own and A is sampled on the fly, so the working set is two polynomials.
 Verification only handles public data, so the code is not constant time.
 
+## ⚠️ Security Warning
+
+The implementation contained in this crate has never been independently audited!
+
+USE AT YOUR OWN RISK!
+
+There is no protection against fault injection, such as voltage glitches.
+
 ## Usage
 
 ```rust
