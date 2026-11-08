@@ -24,3 +24,7 @@ unsafe_code = "forbid"
 [lints.clippy]
 undocumented_unsafe_blocks = "warn"
 manual_let_else = "warn"
+
+# The tests run in release, so keep i32 overflows visible there.
+[profile.release]
+overflow-checks = true
