@@ -27,25 +27,29 @@ verify::<MlDsa65>(pk, message, sig)?;
 verify_with_context::<MlDsa65>(pk, b"context", &[header, body], sig)?;
 ```
 
-## Stack usage
+## Measurements
 
-Measured on a Cortex-M3 in QEMU, in bytes:
+On a Cortex-M3 (mps2-an385) and a Cortex-M33 (mps2-an505) in QEMU, with opt-level "s", fat LTO and one codegen unit, for a valid signature.
+The stack is the peak use of a painted stack in bytes, and the instructions are exact counts from a QEMU plugin (`qemu/icount.c`).
 
-| Verifier | Stack |
-| --- | ---: |
-| `mldsa-verify-otf`, any parameter set | ~3.6 k |
-| `ml-dsa`, ML-DSA-65, decode key and signature and verify | ~134 k |
-| `ml-dsa`, ML-DSA-65, verify with an already decoded key (43 k) | ~60 k |
+| Verifier | M3 stack | M33 stack | M3 instructions | M33 instructions |
+| --- | ---: | ---: | ---: | ---: |
+| `mldsa-verify-otf`, ML-DSA-44 | 3,576 | 3,584 | 5,829,538 | 5,771,325 |
+| `mldsa-verify-otf`, ML-DSA-65 | 3,576 | 3,584 | 10,283,161 | 10,173,615 |
+| `mldsa-verify-otf`, ML-DSA-87 | 3,576 | 3,584 | 18,197,912 | 17,992,631 |
+| `ml-dsa`, ML-DSA-65, decode key and signature and verify | 134,484 | 134,484 | 10,992,314 | 10,880,402 |
+| `ml-dsa`, ML-DSA-65, verify with an already decoded key (43 k) | 60,116 | 60,124 | 2,258,276 | 2,281,015 |
 
-The exact numbers are in [`qemu/stack-usage.txt`](qemu/stack-usage.txt) and CI fails if they change.
+QEMU does not model cycles, so the instruction counts are a proxy for time.
+All numbers, also for an invalid signature, are in [`qemu/stack-usage.txt`](qemu/stack-usage.txt) and CI fails if they change.
 
 ## Testing
 
-The flake has the toolchain and QEMU:
+The flake has the toolchain, QEMU and the tools for the plugin:
 
 ```console
 $ nix develop
-$ make test   # host tests and the QEMU stack usage check
+$ make test   # host tests and the QEMU measurements
 $ make lint   # rustfmt and clippy
 $ make bless  # update qemu/stack-usage.txt after an intended change
 ```

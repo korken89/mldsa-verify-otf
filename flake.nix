@@ -45,8 +45,11 @@
               rustToolchain
               # Task runner (Makefile)
               pkgs.gnumake
-              # Runs the stack usage tests in qemu/ (qemu-system-arm)
+              # Runs the measurements in qemu/ (qemu-system-arm)
               pkgs.qemu
+              # Builds the QEMU instruction counter plugin
+              pkgs.glib
+              pkgs.pkg-config
             ];
           };
         }

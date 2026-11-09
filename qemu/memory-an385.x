@@ -1,4 +1,4 @@
-/* QEMU mps2-an385 */
+/* QEMU mps2-an385 (Cortex-M3) */
 MEMORY
 {
   FLASH : ORIGIN = 0x00000000, LENGTH = 4M

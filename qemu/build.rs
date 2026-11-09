@@ -1,13 +1,19 @@
-//! Puts `memory.x` on the linker path and writes a Wycheproof test vector for each parameter set
-//! to `OUT_DIR`.
+//! Puts the `memory.x` of the QEMU machine on the linker path, names the core for the binary in
+//! `CORE` and writes a Wycheproof test vector for each parameter set to `OUT_DIR`.
 
 use std::{env, fs, path::PathBuf};
 
 fn main() {
     let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    fs::copy("memory.x", out.join("memory.x")).unwrap();
+    let (core, memory) = match env::var("TARGET").unwrap().as_str() {
+        "thumbv7m-none-eabi" => ("Cortex-M3", "memory-an385.x"),
+        "thumbv8m.main-none-eabihf" => ("Cortex-M33", "memory-an505.x"),
+        target => panic!("no QEMU machine for {target}"),
+    };
+    fs::copy(memory, out.join("memory.x")).unwrap();
     println!("cargo:rustc-link-search={}", out.display());
-    println!("cargo:rerun-if-changed=memory.x");
+    println!("cargo:rerun-if-changed={memory}");
+    println!("cargo:rustc-env=CORE={core}");
 
     for set in [44, 65, 87] {
         let vectors = format!("../tests/data/wycheproof_mldsa_{set}_verify.json");

@@ -1,7 +1,13 @@
+# The runners load the instruction counter plugin that `make test-qemu` builds, see icount.c
+
 [build]
 target = "thumbv7m-none-eabi"
 
 [target.thumbv7m-none-eabi]
 # Like the RTIC examples, but the lm3s6965evb has too little RAM for ml-dsa
-runner = "qemu-system-arm -cpu cortex-m3 -machine mps2-an385 -nographic -semihosting-config enable=on,target=native -kernel"
+runner = "qemu-system-arm -cpu cortex-m3 -machine mps2-an385 -nographic -semihosting-config enable=on,target=native -plugin target/libicount.so -kernel"
 rustflags = ["-C", "link-arg=-Tlink.x"]
+
+[target.thumbv8m.main-none-eabihf]
+runner = "qemu-system-arm -cpu cortex-m33 -machine mps2-an505 -nographic -semihosting-config enable=on,target=native -plugin target/libicount.so -kernel"
+rustflags = ["-C", "link-arg=-Tlink.x", "-C", "target-cpu=cortex-m33"]

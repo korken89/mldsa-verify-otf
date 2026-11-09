@@ -2,7 +2,7 @@
 name = "stack-usage"
 version = "0.1.0"
 edition = "2024"
-description = "Stack usage of ML-DSA verification on a Cortex-M3 in QEMU"
+description = "Stack usage and instructions of ML-DSA verification on a Cortex-M3 and M33 in QEMU"
 license = "MIT OR Apache-2.0"
 publish = false
 
