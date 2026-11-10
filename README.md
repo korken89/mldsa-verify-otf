@@ -30,15 +30,17 @@ verify_with_context::<MlDsa65>(pk, b"context", &[header, body], sig)?;
 ## Measurements
 
 On a Cortex-M3 (mps2-an385) and a Cortex-M33 (mps2-an505) in QEMU, with opt-level "s", fat LTO and one codegen unit, for a valid signature.
+Overflow checks are off, as in the release profile of the `qemu` crate, and the numbers depend on the profile of the consumer.
+With overflow checks on, the M33 executes about 10% more instructions.
 The stack is the peak use of a painted stack in bytes, and the instructions are exact counts from a QEMU plugin (`qemu/icount.c`).
 
 | Verifier | M3 stack | M33 stack | M3 instructions | M33 instructions |
 | --- | ---: | ---: | ---: | ---: |
-| `mldsa-verify-otf`, ML-DSA-44 | 3,576 | 3,584 | 5,829,538 | 5,771,325 |
-| `mldsa-verify-otf`, ML-DSA-65 | 3,576 | 3,584 | 10,283,161 | 10,173,615 |
-| `mldsa-verify-otf`, ML-DSA-87 | 3,576 | 3,584 | 18,197,912 | 17,992,631 |
-| `ml-dsa`, ML-DSA-65, decode key and signature and verify | 134,484 | 134,484 | 10,992,314 | 10,880,402 |
-| `ml-dsa`, ML-DSA-65, verify with an already decoded key (43 k) | 60,116 | 60,124 | 2,258,276 | 2,281,015 |
+| `mldsa-verify-otf`, ML-DSA-44 | 3,472 | 3,464 | 5,831,613 | 5,771,164 |
+| `mldsa-verify-otf`, ML-DSA-65 | 3,464 | 3,472 | 10,284,398 | 10,173,537 |
+| `mldsa-verify-otf`, ML-DSA-87 | 3,464 | 3,472 | 18,199,635 | 17,993,159 |
+| `ml-dsa` 0.1.1, ML-DSA-65, decode key and signature and verify | 134,484 | 134,484 | 10,992,314 | 10,880,402 |
+| `ml-dsa` 0.1.1, ML-DSA-65, verify with an already decoded key (43 k) | 60,116 | 60,124 | 2,258,276 | 2,281,015 |
 
 QEMU does not model cycles, so the instruction counts are a proxy for time.
 All numbers, also for an invalid signature, are in [`qemu/stack-usage.txt`](qemu/stack-usage.txt) and CI fails if they change.

@@ -1,9 +1,9 @@
 ML-DSA verification on a Cortex-M3, peak stack in bytes and instructions executed:
                                                    stack        instructions
                                            valid invalid     valid   invalid
-  mldsa-verify-otf, ML-DSA-44               3576    3576   5829538   5829008
-  mldsa-verify-otf, ML-DSA-65               3576    3576  10283161  10286391
-  mldsa-verify-otf, ML-DSA-87               3576    3576  18197912  18192222
+  mldsa-verify-otf, ML-DSA-44               3472    3472   5831613   5831083
+  mldsa-verify-otf, ML-DSA-65               3464    3464  10284398  10287628
+  mldsa-verify-otf, ML-DSA-87               3464    3464  18199635  18193945
   ml-dsa decode and verify, ML-DSA-65     134484  134492  10992314  10992049
   ml-dsa verify, decoded key, ML-DSA-65    60116   60116   2258276   2258007
 
@@ -13,9 +13,9 @@ ML-DSA verification on a Cortex-M3, peak stack in bytes and instructions execute
 ML-DSA verification on a Cortex-M33, peak stack in bytes and instructions executed:
                                                    stack        instructions
                                            valid invalid     valid   invalid
-  mldsa-verify-otf, ML-DSA-44               3584    3584   5771325   5770795
-  mldsa-verify-otf, ML-DSA-65               3584    3584  10173615  10176845
-  mldsa-verify-otf, ML-DSA-87               3584    3584  17992631  17986941
+  mldsa-verify-otf, ML-DSA-44               3464    3464   5771164   5770634
+  mldsa-verify-otf, ML-DSA-65               3472    3472  10173537  10176767
+  mldsa-verify-otf, ML-DSA-87               3472    3472  17993159  17987469
   ml-dsa decode and verify, ML-DSA-65     134484  134492  10880402  10880137
   ml-dsa verify, decoded key, ML-DSA-65    60124   60124   2281015   2280746
 

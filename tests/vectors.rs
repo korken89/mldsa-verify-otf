@@ -30,12 +30,14 @@ struct Group {
     tests: Vec<Case>,
 }
 
-/// Runs one case and returns whether it verified. Wrong lengths cannot reach the API.
+/// Runs one case and returns whether it verified. Wrong lengths cannot reach the API, so they
+/// must be invalid cases.
 fn check<P: ParameterSet>(pk: &[u8], case: &Case) -> bool {
     let (Ok(pk), Ok(sig)) = (
         P::PublicKey::try_from(pk),
         P::Signature::try_from(&case.sig),
     ) else {
+        assert!(!case.valid, "tcId {} has a wrong length", case.id);
         return false;
     };
     let (pk, sig) = (&pk, &sig);

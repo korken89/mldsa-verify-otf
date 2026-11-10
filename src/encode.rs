@@ -1,5 +1,7 @@
 //! Bit unpacking, hints and w1 packing (FIPS 204 sections 7.1 and 7.4).
 
+use core::marker::PhantomData;
+
 use crate::ntt::{Poly, Q, caddq};
 use crate::params::Params;
 
@@ -24,18 +26,24 @@ pub fn unpack_z<P: Params>(bytes: &[u8]) -> impl Iterator<Item = i32> {
     unpack(bytes, P::Z_BITS).map(|v| P::GAMMA1 - v)
 }
 
+/// A hint encoding of omega + k bytes that passed [`hints_valid`].
+pub struct ValidHints<'a, P>(&'a [u8], PhantomData<P>);
+
 /// Checks the hint encoding as HintBitUnpack (Algorithm 21) does, for `y` of omega + k bytes.
-pub fn hints_valid<P: Params>(y: &[u8]) -> bool {
+pub fn hints_valid<P: Params>(y: &[u8]) -> Option<ValidHints<'_, P>> {
     let (indices, limits) = y.split_at(P::OMEGA);
     let mut start = 0;
     for &end in limits {
         let end = usize::from(end);
         if end < start || end > P::OMEGA || indices[start..end].windows(2).any(|w| w[0] >= w[1]) {
-            return false;
+            return None;
         }
         start = end;
     }
-    indices[start..].iter().all(|&b| b == 0)
+    indices[start..]
+        .iter()
+        .all(|&b| b == 0)
+        .then_some(ValidHints(y, PhantomData))
 }
 
 /// UseHint (Algorithm 40) with Decompose (Algorithm 36), for `r` in (-q, q).
@@ -58,9 +66,13 @@ fn use_hint<P: Params>(hint: bool, r: i32) -> u32 {
     r1 as u32
 }
 
-/// Applies the hints at the sorted coefficient `indices` to `w` and returns w1Encode (Algorithm
-/// 28) of the result in the first `P::W1_POLY_LEN` bytes.
-pub fn use_hints_encode<P: Params>(w: &Poly, indices: &[u8]) -> [u8; 192] {
+/// Applies the hints of `row` to `w` and returns w1Encode (Algorithm 28) of the result in the
+/// first `P::W1_POLY_LEN` bytes.
+pub fn use_hints_encode<P: Params>(w: &Poly, hints: &ValidHints<P>, row: u8) -> [u8; 192] {
+    let (indices, limits) = hints.0.split_at(P::OMEGA);
+    let row = usize::from(row);
+    let start = row.checked_sub(1).map_or(0, |r| usize::from(limits[r]));
+    let indices = &indices[start..usize::from(limits[row])];
     let mut hints = indices.iter().map(|&i| usize::from(i)).peekable();
     let mut out = [0; 192];
     let (mut acc, mut acc_bits, mut i) = (0u32, 0, 0);

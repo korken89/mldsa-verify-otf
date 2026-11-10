@@ -92,22 +92,19 @@ fn mu<'a>(pk: &[u8], message: impl IntoIterator<Item = &'a [u8]>) -> [u8; 64] {
 fn verify_mu<P: Params>(pk: &[u8], mu: &[u8; 64], sig: &[u8]) -> bool {
     let (c_tilde, rest) = sig.split_at(P::C_TILDE_LEN);
     let (z, hints) = rest.split_at(P::L * P::Z_POLY_LEN);
-    if !encode::hints_valid::<P>(hints)
-        || encode::unpack_z::<P>(z).any(|z| z.abs() >= P::GAMMA1 - P::BETA)
-    {
+    let Some(hints) = encode::hints_valid::<P>(hints) else {
+        return false;
+    };
+    if encode::unpack_z::<P>(z).any(|z| z.abs() >= P::GAMMA1 - P::BETA) {
         return false;
     }
     let c = sample::sample_in_ball::<P>(c_tilde);
     let mut h = Shake256::default().chain(mu);
     let (rho, t1) = pk.split_at(32);
     let matrix = sample::ExpandA(rho);
-    let (hint_indices, hint_limits) = hints.split_at(P::OMEGA);
-    let mut hint_start = 0;
-    for ((row, t1), &hint_end) in (0..).zip(t1.chunks_exact(T1_POLY_LEN)).zip(hint_limits) {
-        let hint_end = usize::from(hint_end);
-        let w1 = w1_row::<P>(&matrix, row, z, &c, t1, &hint_indices[hint_start..hint_end]);
+    for (row, t1) in (0..).zip(t1.chunks_exact(T1_POLY_LEN)) {
+        let w1 = w1_row::<P>(&matrix, row, z, &c, t1, &hints);
         h.update(&w1[..P::W1_POLY_LEN]);
-        hint_start = hint_end;
     }
     // A longer XOF output starts with the shorter one.
     let mut c_tilde_prime = [0; 64];
@@ -124,7 +121,7 @@ fn w1_row<P: Params>(
     z: &[u8],
     c: &sample::Challenge,
     t1: &[u8],
-    hints: &[u8],
+    hints: &encode::ValidHints<P>,
 ) -> [u8; 192] {
     let mut w: Poly = [0; 256];
     let mut z_hat: Poly = [0; 256];
@@ -149,5 +146,5 @@ fn w1_row<P: Params>(
     for x in w.iter_mut() {
         *x = reduce32(*x);
     }
-    encode::use_hints_encode::<P>(&w, hints)
+    encode::use_hints_encode::<P>(&w, hints, row)
 }

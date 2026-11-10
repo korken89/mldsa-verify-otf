@@ -59,14 +59,20 @@ fn w1_row_largest_sums<P: Params>() {
     }
     let mut c = [0; 256];
     c[0] = 1;
+    let zeros = vec![0; P::OMEGA + P::K];
+    let no_hints = encode::hints_valid::<P>(&zeros).unwrap();
     for t1 in 0..1024 {
         let mut t1_packed = [0; T1_POLY_LEN];
         t1_packed[..2].copy_from_slice(&u16::to_le_bytes(t1));
         let mut want = [0; 256];
         let w = P::L as i64 * i64::from(a) * i64::from(z0) - (i64::from(t1) << D);
         want[0] = w.rem_euclid(i64::from(Q)) as i32;
-        let got = w1_row::<P>(&ConstMatrix(a), 0, &z, &c, &t1_packed, &[]);
-        assert_eq!(got, encode::use_hints_encode::<P>(&want, &[]), "t1 = {t1}");
+        let got = w1_row::<P>(&ConstMatrix(a), 0, &z, &c, &t1_packed, &no_hints);
+        assert_eq!(
+            got,
+            encode::use_hints_encode::<P>(&want, &no_hints, 0),
+            "t1 = {t1}"
+        );
     }
 }
 
@@ -90,9 +96,9 @@ fn repeated_hint_index_rejected() {
     let mut hints = [0; MlDsa65::OMEGA + MlDsa65::K];
     hints[..2].copy_from_slice(&[5, 6]);
     hints[MlDsa65::OMEGA..].fill(2);
-    assert!(encode::hints_valid::<MlDsa65>(&hints));
+    assert!(encode::hints_valid::<MlDsa65>(&hints).is_some());
     hints[1] = 5;
-    assert!(!encode::hints_valid::<MlDsa65>(&hints));
+    assert!(encode::hints_valid::<MlDsa65>(&hints).is_none());
 }
 
 #[test]
@@ -100,9 +106,9 @@ fn backwards_hint_limit_rejected() {
     let mut hints = [0; MlDsa65::OMEGA + MlDsa65::K];
     hints[..2].copy_from_slice(&[5, 6]);
     hints[MlDsa65::OMEGA..].copy_from_slice(&[1, 2, 2, 2, 2, 2]);
-    assert!(encode::hints_valid::<MlDsa65>(&hints));
+    assert!(encode::hints_valid::<MlDsa65>(&hints).is_some());
     hints[MlDsa65::OMEGA + 2] = 1;
-    assert!(!encode::hints_valid::<MlDsa65>(&hints));
+    assert!(encode::hints_valid::<MlDsa65>(&hints).is_none());
 }
 
 #[derive(Deserialize)]
